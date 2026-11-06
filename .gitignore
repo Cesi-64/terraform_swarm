@@ -1,0 +1,15 @@
+# Terraform
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/terraform.tfvars
+terraform/.ssh/
+
+# Ansible
+ansible/inventory.ini
+ansible/credentials/
+*.retry
+
+# Python (Ansible local)
+.venv/

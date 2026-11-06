@@ -1,0 +1,61 @@
+---
+# Playbook principal : Docker -> Swarm -> Portainer
+# Usage : ansible-playbook site.yml
+
+- name: Vérifier la version d'Ansible sur le poste de contrôle
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: ansible-core >= 2.16 requis
+      ansible.builtin.assert:
+        that: ansible_version.full is version('2.16', '>=')
+        fail_msg: >-
+          ansible-core {{ ansible_version.full }} est trop ancien (2.16 minimum pour
+          piloter Ubuntu 24.04). Lancez les playbooks via « make swarm » / « make demo » :
+          le Makefile installe la bonne version d'Ansible dans .venv.
+        success_msg: "ansible-core {{ ansible_version.full }} : OK"
+
+- name: Attendre que les VM soient joignables
+  hosts: swarm
+  gather_facts: false
+  tasks:
+    - name: Connexion SSH disponible
+      ansible.builtin.wait_for_connection:
+        timeout: 300
+
+    - name: Fin de cloud-init (évite les conflits apt au premier boot)
+      ansible.builtin.command: cloud-init status --wait
+      changed_when: false
+      failed_when: false
+
+- name: Installer Docker Engine sur tous les nœuds
+  hosts: swarm
+  become: true
+  roles:
+    - docker
+
+- name: Initialiser le Swarm sur le premier manager
+  hosts: managers[0]
+  become: true
+  tasks:
+    - name: Init
+      ansible.builtin.include_role:
+        name: swarm
+        tasks_from: init
+
+- name: Faire rejoindre les autres nœuds
+  hosts: swarm:!managers[0]
+  become: true
+  serial: 1 # un noeud à la fois, plus lisible et plus sûr
+  tasks:
+    - name: Join
+      ansible.builtin.include_role:
+        name: swarm
+        tasks_from: join
+
+- name: Déployer Portainer
+  hosts: managers[0]
+  become: true
+  roles:
+    - portainer

@@ -1,0 +1,33 @@
+# Copier en terraform.tfvars et adapter.
+
+# Préfixe unique (initiales, numéro d'élève…)
+prefix = "swarm-roger"
+
+# Une région AUTORISÉE pour TON abonnement étudiant (voir ../scripts/check-azure.sh)
+location = "francecentral"
+
+# --- Taille des VM -----------------------------------------------------------
+# Quota étudiant habituel : 4 vCPU par région.
+
+# Option A (défaut) : 3 x B1s = 3 vCPU, 1 Go RAM chacune
+vm_size = "Standard_B1s"
+
+# Option B : plus de RAM, toujours 3 vCPU
+# vm_size = "Standard_B1ms"
+
+# Option C : manager plus costaud (2 vCPU) + 2 workers B1s = 4 vCPU
+# manager_vm_size = "Standard_B2ats_v2"
+# vm_size         = "Standard_B1s"
+
+# --- Topologie --------------------------------------------------------------
+manager_count = 1
+worker_count  = 2
+# Variante haute dispo : 3 managers, 0 worker
+# manager_count = 3
+# worker_count  = 0
+
+# --- Accès ------------------------------------------------------------------
+# Vide = IP publique du poste détectée automatiquement
+# admin_cidr = "203.0.113.0/24"
+# Utiliser une clé existante plutôt qu'en générer une :
+# ssh_public_key_path = "~/.ssh/id_rsa.pub"

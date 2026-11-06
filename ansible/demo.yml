@@ -1,0 +1,40 @@
+---
+# Optionnel : déploie la stack de démo (ansible-playbook demo.yml)
+# Ubuntu 24.04 embarque Python 3.12 : ansible-core < 2.16 ne sait pas le piloter
+# (erreurs du type "unexpected keyword argument 'cert_file'" dans get_url / uri).
+- name: Vérifier la version d'Ansible sur le poste de contrôle
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: ansible-core >= 2.16 requis
+      ansible.builtin.assert:
+        that: ansible_version.full is version('2.16', '>=')
+        fail_msg: >-
+          ansible-core {{ ansible_version.full }} est trop ancien (2.16 minimum pour
+          piloter Ubuntu 24.04). Lancez les playbooks via « make swarm » / « make demo » :
+          le Makefile installe la bonne version d'Ansible dans .venv.
+        success_msg: "ansible-core {{ ansible_version.full }} : OK"
+
+- name: Déployer la stack de démonstration
+  hosts: managers[0]
+  become: true
+  tasks:
+    - name: Copier le fichier de stack
+      ansible.builtin.copy:
+        src: stacks/demo-whoami.yml
+        dest: /opt/stacks/demo-whoami.yml
+        mode: "0644"
+
+    - name: docker stack deploy demo
+      ansible.builtin.command: docker stack deploy --detach=true -c /opt/stacks/demo-whoami.yml demo
+      changed_when: true
+
+    - name: Répartition des réplicas
+      ansible.builtin.command: docker service ps demo_whoami --format {% raw %}'{{ .Name }} -> {{ .Node }} ({{ .CurrentState }})'{% endraw %}
+      register: ps
+      changed_when: false
+
+    - name: Résultat
+      ansible.builtin.debug:
+        var: ps.stdout_lines

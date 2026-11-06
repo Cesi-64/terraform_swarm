@@ -1,0 +1,18 @@
+# Stack de démonstration : 6 réplicas répartis sur le cluster.
+# Rafraîchir http://<IP de N'IMPORTE QUEL nœud>/ : le hostname change à chaque requête
+# -> routing mesh + load-balancing du Swarm.
+services:
+  whoami:
+    image: traefik/whoami:latest
+    ports:
+      - "80:80"
+    deploy:
+      replicas: 6
+      update_config:
+        parallelism: 2
+        delay: 5s
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          memory: 64M

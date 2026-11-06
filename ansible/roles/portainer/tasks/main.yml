@@ -1,0 +1,54 @@
+---
+- name: Dossier des stacks
+  ansible.builtin.file:
+    path: /opt/stacks/portainer
+    state: directory
+    mode: "0755"
+
+- name: Fichier de stack Portainer
+  ansible.builtin.template:
+    src: portainer-stack.yml.j2
+    dest: /opt/stacks/portainer/portainer-stack.yml
+    mode: "0644"
+  register: stack_file
+
+- name: Le secret du mot de passe admin existe-t-il ?
+  ansible.builtin.command: docker secret inspect portainer_admin_password
+  register: secret_check
+  changed_when: false
+  failed_when: false
+
+- name: Créer le secret Swarm du mot de passe admin
+  ansible.builtin.command: docker secret create portainer_admin_password -
+  args:
+    stdin: "{{ portainer_admin_password }}"
+    stdin_add_newline: false
+  when: secret_check.rc != 0
+  changed_when: true
+  no_log: true
+
+- name: Stack Portainer déjà déployée ?
+  ansible.builtin.command: docker stack ls --format {% raw %}'{{ .Name }}'{% endraw %}
+  register: stacks
+  changed_when: false
+
+- name: docker stack deploy portainer
+  ansible.builtin.command: docker stack deploy --detach=true -c /opt/stacks/portainer/portainer-stack.yml portainer
+  when: stack_file is changed or 'portainer' not in stacks.stdout_lines
+  changed_when: true
+
+- name: Attendre que Portainer réponde sur 9443
+  ansible.builtin.uri:
+    url: https://127.0.0.1:9443/api/system/status
+    validate_certs: false
+  register: portainer_status
+  until: portainer_status.status == 200
+  retries: 40
+  delay: 5
+
+- name: Accès Portainer
+  ansible.builtin.debug:
+    msg:
+      - "Portainer : https://{{ ansible_host }}:9443  (certificat auto-signé, accepter l'alerte)"
+      - "Utilisateur : admin"
+      - "Mot de passe : voir ansible/credentials/portainer_admin"

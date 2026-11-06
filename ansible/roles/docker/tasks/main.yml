@@ -1,0 +1,81 @@
+---
+# Installation de Docker Engine depuis le dépôt officiel Docker (pas le paquet docker.io d'Ubuntu)
+
+- name: Paquets prérequis
+  ansible.builtin.apt:
+    name: [ca-certificates, curl]
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Dossier des clés APT
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: "0755"
+
+- name: Clé GPG officielle Docker
+  ansible.builtin.get_url:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    dest: /etc/apt/keyrings/docker.asc
+    mode: "0644"
+
+- name: Dépôt APT officiel Docker
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [arch={{ 'arm64' if ansible_facts['architecture'] == 'aarch64' else 'amd64' }}
+      signed-by=/etc/apt/keyrings/docker.asc]
+      https://download.docker.com/linux/ubuntu
+      {{ ansible_facts['distribution_release'] }} stable
+    filename: docker
+    state: present
+
+- name: Installer Docker Engine
+  ansible.builtin.apt:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+    state: present
+    update_cache: true
+
+- name: Docker démarré et activé au boot
+  ansible.builtin.systemd:
+    name: docker
+    state: started
+    enabled: true
+
+- name: L'utilisateur admin peut utiliser docker sans sudo
+  ansible.builtin.user:
+    name: "{{ ansible_user }}"
+    groups: docker
+    append: true
+
+# --- Swap pour les petites VM (B1s = 1 Go de RAM) ---------------------------
+
+- name: Créer un fichier de swap
+  when: ansible_facts['memtotal_mb'] < 2048
+  block:
+    - name: Fichier /swapfile
+      ansible.builtin.command: fallocate -l {{ swap_size_mb }}M /swapfile
+      args:
+        creates: /swapfile
+      register: swapfile
+
+    - name: Permissions /swapfile
+      ansible.builtin.file:
+        path: /swapfile
+        mode: "0600"
+
+    - name: Formater et activer le swap
+      ansible.builtin.shell: mkswap /swapfile && swapon /swapfile
+      when: swapfile is changed
+      changed_when: true
+
+    - name: Swap persistant au redémarrage
+      ansible.builtin.lineinfile:
+        path: /etc/fstab
+        line: "/swapfile none swap sw 0 0"
+        state: present

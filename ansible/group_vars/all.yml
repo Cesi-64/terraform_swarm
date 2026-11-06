@@ -1,0 +1,14 @@
+---
+# Swap ajouté si la VM a moins de 2 Go de RAM (B1s = 1 Go)
+swap_size_mb: 2048
+
+# Portainer : tag "lts" (Long Term Support) de portainer-ce et portainer/agent
+portainer_version: lts
+
+# Mot de passe admin Portainer (12 caractères minimum).
+# Généré une fois et stocké dans ansible/credentials/portainer_admin (non versionné).
+portainer_admin_password: "{{ lookup('ansible.builtin.password', playbook_dir ~ '/credentials/portainer_admin length=20 chars=ascii_letters,digits') }}"
+
+# Premier manager : il initialise le Swarm et héberge Portainer
+swarm_leader: "{{ groups['managers'][0] }}"
+swarm_leader_ip: "{{ hostvars[groups['managers'][0]]['private_ip'] }}"

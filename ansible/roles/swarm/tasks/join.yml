@@ -1,0 +1,32 @@
+---
+- name: État Swarm du nœud
+  ansible.builtin.command: docker info --format {% raw %}'{{ .Swarm.LocalNodeState }}'{% endraw %}
+  register: swarm_state
+  changed_when: false
+
+- name: Choisir le token selon le groupe (manager ou worker)
+  ansible.builtin.set_fact:
+    join_token: >-
+      {{ hostvars[swarm_leader]['swarm_manager_token']
+         if inventory_hostname in groups['managers']
+         else hostvars[swarm_leader]['swarm_worker_token'] }}
+  no_log: true
+
+- name: docker swarm join
+  ansible.builtin.command: >
+    docker swarm join
+    --token {{ join_token }}
+    --advertise-addr {{ private_ip }}
+    {{ swarm_leader_ip }}:2377
+  when: swarm_state.stdout != 'active'
+  changed_when: true
+  no_log: true # IMPORTANT ici pour ne pas afficher le token dans les logs
+
+- name: Le nœud apparaît Ready côté manager
+  ansible.builtin.command: docker node ls --format {% raw %}'{{ .Hostname }} {{ .Status }}'{% endraw %}
+  delegate_to: "{{ swarm_leader }}"
+  register: nodes
+  changed_when: false
+  until: (inventory_hostname ~ ' Ready') in nodes.stdout
+  retries: 10
+  delay: 3
